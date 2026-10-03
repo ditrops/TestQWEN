@@ -166,7 +166,7 @@ function resetState() {
     score: 0, lives: 3, combo: 0, boostCount: 0,
     laneX: 0, steer: 0,
     timeLeft: level ? level.timeLimit : 0,
-    spawnTimer: 0, quizIdx: 0, quizPendingAt: [],
+    spawnTimer: 0, quizPlan: null, quizGate: false,
     scanActive: 0, shieldActive: 0, boostActive: 0,
     over: false, won: false, shake: 0, wallCool: 0,
     entityZGap: 26, hitsTaken: 0
@@ -369,22 +369,14 @@ function spawnEntity(z, forcedX) {
 }
 
 /* принудительный спавн «добравого» объекта в конкретной полосе (гарант проходимости) */
-function spawnEntityAt(z, x, goodOnly) {
-  const backup = level.id;
-  const r = Math.random();
+function spawnEntityAt(z, x) {
   let kind;
   if (level.arena) kind = "star";
-  else if (backup === "astar") kind = r < 0.6 ? "node" : "data";
-  else if (backup === "vision") kind = r < 0.6 ? "obj" : "data";
-  else if (backup === "tree") kind = r < 0.4 ? "node" : "data";
-  else kind = r < 0.7 ? "data" : "star";
-  const origPick = pickKind;
-  // временно подменяем источник типа
-  const savedRandom = Math.random;
-  const fake = { kind };
-  // проще: вызываем spawnEntity и правим тип через параметр — делаем напрямую:
-  const E = spawnEntityAs(kind, z, x);
-  return E;
+  else if (level.id === "astar") kind = Math.random() < 0.6 ? "node" : "data";
+  else if (level.id === "vision") kind = Math.random() < 0.6 ? "obj" : "data";
+  else if (level.id === "tree") kind = Math.random() < 0.4 ? "node" : "data";
+  else kind = Math.random() < 0.7 ? "data" : "star";
+  return spawnEntityAs(kind, z, x);
 }
 
 function spawnEntityAs(kind, z, lx) {
@@ -408,6 +400,19 @@ function spawnEntityAs(kind, z, lx) {
     const i = (Math.random() * 3) | 0;
     mesh = new THREE.Mesh(shapes[i], new THREE.MeshPhongMaterial({ color: colors[i], emissive: 0x1a0510 }));
     mesh.position.set(lx, 1.15, z); E.points = 3; E.good = true;
+  } else if (kind === "quizgate") {              // 🎓 чекпоинт вопроса — стоит на трассе заранее
+    mesh = new THREE.Group();
+    const archL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 3.4, 0.4),
+      new THREE.MeshBasicMaterial({ color: 0x7c5cff }));
+    archL.position.set(-2.4, 1.7, 0);
+    const archR = archL.clone(); archR.position.x = 2.4;
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.4, 0.4),
+      new THREE.MeshBasicMaterial({ color: 0x00e5ff }));
+    beam.position.y = 3.6;
+    const ic = spriteText("🎓", "#fff", 84); ic.position.y = 4.7; ic.scale.set(2, 2, 1);
+    mesh.add(archL, archR, beam, ic);
+    mesh.position.set(lx, 0, z);
+    E.good = false; E.harm = "quizgate"; E.isGate = true;
   }
   if (!mesh) return null;
   scene.add(mesh);
@@ -469,10 +474,12 @@ function update(dt, now) {
     setBar(S.timeLeft / L.timeLimit);
     if (S.timeLeft <= 0) { finish(false); return; }
   }
-  // скорость и дистанция
-  const sc = scanMult();
-  S.speed += dt * (S.boostActive > 0 ? 14 : 3.2) * (S.scanActive > 0 ? 0.8 : 1);
-  if (S.speed > S.maxSpeed) S.speed = S.maxSpeed;
+  // скорость и дистанция (на время вопроса машина стоит — квиз вписан в маршрут)
+  const sc = S.quizGate ? 0 : scanMult();
+  if (!S.quizGate) {
+    S.speed += dt * (S.boostActive > 0 ? 14 : 3.2) * (S.scanActive > 0 ? 0.8 : 1);
+    if (S.speed > S.maxSpeed) S.speed = S.maxSpeed;
+  }
   if (S.boostActive > 0) S.boostActive -= dt;
   if (S.scanActive > 0) S.scanActive -= dt;
   if (S.shieldActive > 0) S.shieldActive -= dt;
@@ -506,7 +513,7 @@ function update(dt, now) {
   groundSegments.forEach(m => {
     m.position.z += moved;
     if (m.position.z > 90) m.position.z -= 360;
-    m.material.map.offset.y -= moved / 60 * -1; // движение разметки
+    if (m.material && m.material.map) m.material.map.offset.y -= moved / 60 * -1; // движение разметки
   });
   sideObjects.forEach(o => {
     o.position.z += moved;
@@ -518,18 +525,31 @@ function update(dt, now) {
   if (S.spawnTimer <= 0) {
     const lanes = [-4.2, -1.4, 1.4, 4.2];
     const first = spawnEntity(-110);
-    if (first && !first.good) {
+    if (first && !first.good && !first.isGate) {
       // рядом ставим добрый объект в другую полосу — проход всегда возможен
       const alt = lanes.filter(x => x !== first.x);
-      const E2 = spawnEntityAt(-110, alt[(Math.random() * alt.length) | 0], true);
+      spawnEntityAt(-110, alt[(Math.random() * alt.length) | 0]);
     }
     if (Math.random() < 0.5) spawnEntity(-110 - 18 - Math.random() * 20);
     S.spawnTimer = L.arena ? 9 : 13;
   }
 
-  // квиз по дистанции (не в арене)
-  if (!L.arena && S.quizIdx < L.quiz.length && S.dist > (S.quizIdx + 1) * (L.distance / (L.quiz.length + 1))) {
-    openQuiz(S.quizIdx++);
+  // квиз «вписан» в маршрут: за 60 м до вопроса — предупреждение,
+  // затем на дороге появляется чекпоинт-арка 🎓, которую видно заранее
+  if (!L.arena && S.quizPlan) {
+    for (const slot of S.quizPlan) {
+      if (slot.asked) continue;
+      const ahead = slot.d - S.dist;
+      if (!slot.warned && ahead <= 60) {
+        slot.warned = true;
+        popMsg("🎓 ВПЕРЕДИ ЧЕКПОИНТ ЗНАНИЙ", "#7c5cff");
+      }
+      if (!slot.spawned && ahead <= 105) {
+        slot.spawned = true;
+        const G = spawnEntityAs("quizgate", -(slot.d - S.dist), 0);
+        if (G) { G.slot = slot; slot.asked = true; }   // вопрос гарантированно будет задан один раз
+      }
+    }
   }
 
   // обновление сущностей
@@ -585,6 +605,12 @@ function bumpWall() {
 
 /* ---------- столкновения ---------- */
 function collide(E) {
+  if (E.isGate) {                        // чекпоинт вопроса: остановка → квиз → проезд
+    E.dead = true;                       // арка исчезает, вопрос уже задан
+    const qi = S.quizPlan.indexOf(E.slot);
+    openQuiz(qi >= 0 ? qi : 0);
+    return;
+  }
   if (E.good) {
     E.dead = true;
     S.combo++;
@@ -728,33 +754,62 @@ function markPath(on) {
 
 /* ---------- квиз ---------- */
 let quizLock = false;
+
+/* Перемешиваем варианты: правильный больше НЕ всегда первый */
+function shuffledOptions(q) {
+  const opts = q.a.map((txt, idx) => ({ txt, ok: idx === q.c }));
+  for (let i = opts.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    [opts[i], opts[j]] = [opts[j], opts[i]];
+  }
+  return opts;
+}
+
+/* План квиза: вопросы «вписаны» в маршрут — между сбором датасетов,
+   с разведкой впереди (чтобы игрок видел приближение вопроса) */
+function buildQuizPlan(L) {
+  const n = L.quiz.length;
+  const plan = [];
+  for (let i = 0; i < n; i++) {
+    // слот на 2-й трети маршрута между обязательными чекпоинтами
+    const base = (i + 1) * (L.distance / (n + 1));
+    const jitter = (Math.random() - 0.5) * 2 * (L.distance / (n + 1)) * 0.3;
+    let d = Math.round(base + jitter);
+    if (plan.length && d < plan[plan.length - 1].d + 60) d = plan[plan.length - 1].d + 60;
+    d = Math.max(70, Math.min(d, L.distance - 80));
+    plan.push({ d, asked: false, warned: false });
+  }
+  return plan;
+}
+
 function openQuiz(i) {
   const q = level.quiz[i];
   if (!window.SIM) paused = true;
+  S.quizGate = true;          // машина останавливается перед вопросом
   quizLock = true;
   $("quizEmoji").textContent = q.e;
   $("quizText").textContent = q.q;
   const ans = $("quizAnswers"); ans.innerHTML = "";
-  q.a.forEach((txt, idx) => {
+  shuffledOptions(q).forEach((opt) => {
     const b = document.createElement("button");
-    b.className = "btn"; b.textContent = txt;
+    b.className = "btn"; b.textContent = opt.txt;
     b.onclick = () => {
-      if (idx === q.c) {
+      if (opt.ok) {
         b.classList.add("right");
         showFact(q.f);
         S.score += 5;
         popMsg("+5 ЗА ЗНАНИЕ 🎓", "#3ddc84");
       } else {
         b.classList.add("wrong");
-        [...ans.children][q.c].classList.add("right");
+        [...ans.children].find(x => x._ok)?.classList.add("right");
         showFact("Ответ был: «" + q.a[q.c] + "». " + q.f);
       }
       [...ans.children].forEach(x => x.disabled = true);
-      if (window.SIM) { hideQuiz(); paused = false; quizLock = false; }
-      else setTimeout(() => {
-        hideQuiz(); paused = false; quizLock = false;
-      }, 2600);
+      const closeQuiz = () => { hideQuiz(); paused = false; quizLock = false; S.quizGate = false; };
+      if (window.SIM) closeQuiz();
+      else setTimeout(closeQuiz, 2600);
     };
+    b._ok = opt.ok;
     ans.appendChild(b);
   });
   $("quizModal").classList.remove("hidden");
@@ -806,6 +861,7 @@ function startLevel(i) {
   level = LEVELS[i];
   initEngine();
   resetState();
+  if (!level.arena) S.quizPlan = buildQuizPlan(level);   // вопросы вписаны в маршрут
   buildWorld();
   $("hudTopic").textContent = level.topic;
   $("btnPause").textContent = "⏸ Пауза";
