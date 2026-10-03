@@ -15,7 +15,8 @@
     card.addEventListener('click', ()=>{
       const g = card.getAttribute('data-goto');
       if (g === 'walk') { startWalk(); }
-      else window.location.href = g + (g.endsWith('/')?'':'/') ;
+      else if (g.startsWith('./')) { window.location.href = g; } // корень: хаб с ?play=1 запускает НейроКвест сразу
+      else window.location.href = g + (g.includes('?')?'':(g.endsWith('/')?'':'/')) ;
     });
   });
 })();
@@ -262,9 +263,13 @@ function movePlayer(dt){
   if(keys['KeyD']||keys['ArrowRight'])fx+=1;
   if(fx||fz){
     const l=Math.hypot(fx,fz); fx/=l; fz/=l;
+    // three.js: камера rotation.order='YXZ', yaw вокруг Y, взгляд вдоль локального -Z.
+    // Мировые базисные векторы камеры: forward = (-sin(yaw), -cos(yaw)), right = (cos(yaw), -sin(yaw)).
+    // Движение = fwd*(-fz) + right*fx  →  dx = s*fz + c*fx, dz = c*fz - s*fx.
+    // Со старыми знаками стрейф инвертировался при повороте камеры вбок/назад.
     const s=Math.sin(player.yaw), c=Math.cos(player.yaw);
-    player.x += (fx*c - fz*s)*sp;
-    player.z += (fx*s + fz*c)*sp;
+    player.x += (s*fz + c*fx)*sp;
+    player.z += (c*fz - s*fx)*sp;
     player.x=Math.max(-76,Math.min(76,player.x));
     player.z=Math.max(-76,Math.min(76,player.z));
   }

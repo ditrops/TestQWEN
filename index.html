@@ -9,15 +9,51 @@
 <body>
 
 <!-- ============ ГЛАВНОЕ МЕНЮ ============ -->
-<section id="screen-menu" class="screen active">
+<!-- ============ ХАБ: ВЫБОР ИГРЫ (главный экран) ============ -->
+<section id="screen-hub" class="screen active">
   <div class="hero">
     <div class="hero-icon">🧠</div>
+    <h1>НЕЙРО<span style="color:#4fd8ff">КВЕСТ</span></h1>
+    <p class="subtitle">Игровой проект по информатике об основах искусственного интеллекта — выбери режим</p>
+    <div class="hub-cards" style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;max-width:1000px;margin:26px auto;">
+      <button class="hub-card" onclick="Game.startLevel(1)"
+        style="width:min(300px,90vw);background:#0b122acc;border:1px solid #27406e;border-radius:16px;padding:22px;cursor:pointer;text-align:left;color:#dfe8ff;transition:.2s;"
+        onmouseover="this.style.borderColor='#4fd8ff'" onmouseout="this.style.borderColor='#27406e'">
+        <div style="font-size:34px">🕹️</div>
+        <h2 style="font-size:20px;margin:8px 0;color:#fff">НейроКвест 2D</h2>
+        <p style="font-size:13.5px;color:#9db1da;line-height:1.5">5 уровней-головоломок: викторина, дерево решений, поиск A*, нейросеть-распознаватель цифр и обучение с подкреплением.</p>
+      </button>
+      <button class="hub-card" onclick="window.location.href='game3d/'"
+        style="width:min(300px,90vw);background:#0b122acc;border:1px solid #27406e;border-radius:16px;padding:22px;cursor:pointer;text-align:left;color:#dfe8ff;transition:.2s;"
+        onmouseover="this.style.borderColor='#4fd8ff'" onmouseout="this.style.borderColor='#27406e'">
+        <div style="font-size:34px">🏎️</div>
+        <h2 style="font-size:20px;margin:8px 0;color:#fff">НейроГонка 3D <span style="color:#ffd45e;font-size:12px">· ЭКШЕН</span></h2>
+        <p style="font-size:13.5px;color:#9db1da;line-height:1.5">Гоночный экшен на three.js: собирай данные, уклоняйся от вирусов, спецсилы, арки-чекпоинты с вопросами и бестиарий 📖.</p>
+      </button>
+      <button class="hub-card" onclick="window.location.href='walk/'"
+        style="width:min(300px,90vw);background:#0b122acc;border:1px solid #27406e;border-radius:16px;padding:22px;cursor:pointer;text-align:left;color:#dfe8ff;transition:.2s;"
+        onmouseover="this.style.borderColor='#4fd8ff'" onmouseout="this.style.borderColor='#27406e'">
+        <div style="font-size:34px">👣</div>
+        <h2 style="font-size:20px;margin:8px 0;color:#fff">Пробуждение ИИ <span style="color:#5eff8f;font-size:12px">NEW · 3D</span></h2>
+        <p style="font-size:13.5px;color:#9db1da;line-height:1.5">Бродилка в чёрном пространстве: помоги ИИ НЕКСС восстановить разорванную сеть и узнай, как он «думает».</p>
+      </button>
+    </div>
+    <div class="menu-buttons">
+      <button class="btn btn-ghost" onclick="UI.show('screen-about')">ℹ️ О проекте</button>
+    </div>
+    <div id="menu-progress" class="menu-progress"></div>
+  </div>
+</section>
+
+<!-- ============ МЕНЮ НЕЙРОКВЕСТА (доступ из игры кнопкой «В меню») ============ -->
+<section id="screen-menu" class="screen">
+  <div class="hero">
+    <div class="hero-icon">🕹️</div>
     <h1>НейроКвест</h1>
     <p class="subtitle">Проект по информатике: пройди 5 уровней и узнай, как устроен искусственный интеллект</p>
     <div class="menu-buttons">
       <button class="btn btn-primary btn-big" onclick="Game.startLevel(1)">▶ Начать игру</button>
-      <button class="btn btn-ghost" onclick="window.location.href='walk/'">👣 Пробуждение ИИ (3D-бродилка)</button>
-      <button class="btn btn-ghost" onclick="window.location.href='game3d/'">🏎️ НейроГонка 3D</button>
+      <button class="btn btn-ghost" onclick="UI.show('screen-hub')">🎮 Все игры</button>
       <button class="btn btn-ghost" onclick="UI.show('screen-about')">ℹ️ О проекте</button>
     </div>
     <div id="menu-progress" class="menu-progress"></div>

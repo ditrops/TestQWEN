@@ -633,4 +633,9 @@ const RLGame = {
 
 // ---------- старт ----------
 Menu.render();
-UI.show('screen-menu');
+if (location.search.includes('play=1')) {
+  // быстрый запуск НейроКвеста из хаба на странице /walk/
+  Game.startLevel(1);
+} else {
+  UI.show('screen-hub');
+}
