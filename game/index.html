@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>НейроКвест — игра об основах ИИ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ ГЛАВНОЕ МЕНЮ ============ -->
+<section id="screen-menu" class="screen active">
+  <div class="hero">
+    <div class="hero-icon">🧠</div>
+    <h1>НейроКвест</h1>
+    <p class="subtitle">Проект по информатике: пройди 5 уровней и узнай, как устроен искусственный интеллект</p>
+    <div class="menu-buttons">
+      <button class="btn btn-primary btn-big" onclick="Game.startLevel(1)">▶ Начать игру</button>
+      <button class="btn btn-ghost" onclick="UI.show('screen-about')">ℹ️ О проекте</button>
+    </div>
+    <div id="menu-progress" class="menu-progress"></div>
+  </div>
+</section>
+
+<!-- ============ ОБ ПРОЕКТЕ ============ -->
+<section id="screen-about" class="screen">
+  <div class="panel">
+    <h2>ℹ️ О проекте</h2>
+    <p><b>НейроКвест</b> — образовательная браузерная игра об основах искусственного интеллекта.</p>
+    <p>Каждый уровень посвящён одной теме:</p>
+    <ul class="about-list">
+      <li>🤖 <b>Уровень 1</b> — Что такое ИИ: тест Тьюринга и виды ИИ</li>
+      <li>🌳 <b>Уровень 2</b> — Машинное обучение: дерево решений</li>
+      <li>🔍 <b>Уровень 3</b> — Поиск и эвристики: алгоритм A*</li>
+      <li>👁️ <b>Уровень 4</b> — Нейронные сети: распознаём цифры</li>
+      <li>🎮 <b>Уровень 5</b> — Мини-игра: обучи агента методом проб и ошибок</li>
+    </ul>
+    <p>Работает полностью офлайн: HTML + CSS + JavaScript, без библиотек.</p>
+    <button class="btn btn-primary" onclick="UI.show('screen-menu')">⬅ Назад</button>
+  </div>
+</section>
+
+<!-- ============ УРОВЕНЬ 1: ВИКТОРИНА ============ -->
+<section id="screen-level1" class="screen">
+  <div class="panel">
+    <h2>🤖 Уровень 1. Что такое искусственный интеллект?</h2>
+    <p class="level-desc">Ответь на вопросы викторины. За правильные ответы с первого раза — максимум звёзд.</p>
+    <div id="quiz-box"></div>
+  </div>
+</section>
+
+<!-- ============ УРОВЕНЬ 2: ДЕРЕВО РЕШЕНИЙ ============ -->
+<section id="screen-level2" class="screen">
+  <div class="panel wide">
+    <h2>🌳 Уровень 2. MACHINE LEARNING!</h2>
+    <p class="level-desc">«Машинное обучение» — фильм-пародия (как «Анимatrix»). Робот должен решить, можно ли выпускать его гулять. Ты — алгоритм дерева решений. Выбирай признаки так, чтобы классифицировать всех роботов правильно!</p>
+    <div id="tree-area"></div>
+  </div>
+</section>
+
+<!-- ============ УРОВЕНЬ 3: A* ПОИСК ============ -->
+<section id="screen-level3" class="screen">
+  <div class="panel wide">
+    <h2>🔍 Уровень 3. Путь героя и алгоритм A*</h2>
+    <p class="level-desc">Роботу нужно добраться до выхода. Клетки с ценой выше — «дороже». Проложи путь суммарной стоимостью не больше лимита. Подсказка: жёлтые точки — это эвристика, как в настоящем A*.</p>
+    <div id="astar-area"></div>
+  </div>
+</section>
+
+<!-- ============ УРОВЕНЬ 4: НЕЙРОСЕТЬ ============ -->
+<section id="screen-level4" class="screen">
+  <div class="panel wide">
+    <h2>👁️ Уровень 4. Нейронная сеть рисует… цифру!</h2>
+    <p class="level-desc">Настоящие нейросети видят изображение как набор пикселей. Нарисуй цифру от <b id="target-digit">?</b> в поле 8×8 — «нейрон» попытается её угадать. Сопоставь образ и его «вектор признаков»!</p>
+    <div id="nn-area"></div>
+  </div>
+</section>
+
+<!-- ============ УРОВЕНЬ 5: ОБУЧЕНИЕ АГЕНТА ============ -->
+<section id="screen-level5" class="screen">
+  <div class="panel wide">
+    <h2>🎮 Уровень 5. Обучение с подкреплением</h2>
+    <p class="level-desc">Помоги агенту собрать ⭐ и избежать 🕳️. Каждый раунд меняй «политику» (кнопки), запоминая, что принесло награду, а что — штраф. Это и есть принцип обучения с подкреплением!</p>
+    <div id="rl-area"></div>
+  </div>
+</section>
+
+<!-- ============ ЭКРАН РЕЗУЛЬТАТА УРОВНЯ ============ -->
+<div id="result-overlay" class="overlay hidden">
+  <div class="overlay-card">
+    <div id="result-icon" class="result-icon">🏆</div>
+    <h3 id="result-title">Уровень пройден!</h3>
+    <div id="result-stars" class="stars-big"></div>
+    <p id="result-text"></p>
+    <div class="overlay-buttons">
+      <button class="btn btn-ghost" id="btn-retry" onclick="">🔄 Заново</button>
+      <button class="btn btn-primary" id="btn-next" onclick="">Далее ➡</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ФИНАЛ ============ -->
+<section id="screen-final" class="screen">
+  <div class="hero">
+    <div class="hero-icon">🏆</div>
+    <h1>Поздравляем!</h1>
+    <p class="subtitle">Ты прошёл все уровни НейроКвеста!</p>
+    <div id="final-stats" class="final-stats"></div>
+    <p class="funfact" id="final-fact"></p>
+    <div class="menu-buttons">
+      <button class="btn btn-primary" onclick="Game.resetAll()">🔄 Пройти заново</button>
+      <button class="btn btn-ghost" onclick="UI.show('screen-menu')">🏠 В меню</button>
+    </div>
+  </div>
+</section>
+
+<!-- Верхняя панель прогресса -->
+<header id="topbar" class="hidden">
+  <button class="btn btn-small btn-ghost" onclick="Game.goMenu()">🏠</button>
+  <div id="topbar-level"></div>
+  <div id="topbar-score"></div>
+</header>
+
+<script src="app.js"></script>
+</body>
+</html>
