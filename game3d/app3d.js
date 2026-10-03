@@ -164,6 +164,8 @@ function resetState() {
   Object.assign(S, {
     dist: 0, speed: 26, baseSpeed: 26, maxSpeed: 46,
     score: 0, lives: 3, combo: 0, boostCount: 0,
+    abilityMax: { scan: 2, shield: 2, boost: 3 }[level && level.ability] || 0,
+    abilityUses: 0, abilityCd: 0,
     laneX: 0, steer: 0,
     timeLeft: level ? level.timeLimit : 0,
     spawnTimer: 0, quizPlan: null, quizGate: false,
@@ -484,6 +486,10 @@ function update(dt, now) {
   if (S.scanActive > 0) S.scanActive -= dt;
   if (S.shieldActive > 0) S.shieldActive -= dt;
   if (S.wallCool > 0) S.wallCool -= dt;
+  if (S.abilityCd > 0) {
+    S.abilityCd -= dt;
+    if (S.abilityCd <= 0) updateHud();   // обновляем счётчик зарядов после отката КД
+  }
   const moved = S.speed * dt * sc;
   if (!L.arena) S.dist += moved;
 
@@ -678,7 +684,12 @@ function updateHud() {
   $("hudScore").textContent = S.score;
   $("hudTarget").textContent = level.arena ? "∞" : level.target;
   $("hudLives").textContent = "❤️".repeat(Math.max(0, S.lives)) || "0";
-  $("hudBoost").textContent = "×" + S.combo;
+  if (level.ability) {
+    const left = Math.max(0, S.abilityMax - S.abilityUses);
+    $("hudBoost").textContent = `${ABILITY_INFO[level.ability].icon}${"🔋".repeat(left) || "✖"}${S.abilityCd > 0 ? " ⏳" : ""}`;
+  } else {
+    $("hudBoost").textContent = "×" + S.combo;
+  }
   $("hudDist").textContent = level.arena ? `⏱ ${Math.ceil(S.timeLeft)}с` : `${Math.floor(S.dist)}/${level.distance} м`;
 }
 function setBar(frac) {
@@ -694,20 +705,36 @@ function popMsg(t, color) {
   msgTO = setTimeout(() => el.classList.remove("show"), 900);
 }
 
-/* ---------- суперсилы ---------- */
+/* ---------- суперсилы (ограниченными зарядами) ---------- */
+const ABILITY_INFO = {
+  scan:   { icon: "🔍", name: "СКАН A*",        cd: 6 },
+  shield: { icon: "🛡️", name: "ЩИТ",            cd: 6 },
+  boost:  { icon: "⏱️", name: "ЭПОХА ОБУЧЕНИЯ", cd: 4 }
+};
 function useAbility() {
-  if (!running || paused || S.over) return;
+  if (!running || paused || S.over || S.quizGate) return;
   const a = level.ability;
   if (!a) return;
+  const info = ABILITY_INFO[a];
+  // Ограничения: заряды + перезарядка
+  if (S.abilityCd > 0) { popMsg(`⏳ ПЕРЕЗАРЯДКА ${S.abilityCd.toFixed(1)}с`, "#9aa3c0"); return; }
+  if (S.abilityUses >= S.abilityMax) {
+    popMsg("🔋 ЗАРЯДЫ ИСЧЕРПАНЫ", "#ff5370");
+    showAbility(`${info.icon} ${info.name}: заряды кончились!`);
+    return;
+  }
+  S.abilityUses++;
+  S.abilityCd = info.cd;
+  updateHud();
   if (a === "scan") {
     S.scanActive = 4;
     markPath(true);
-    showAbility("⚡ ГРАДИЕНТНЫЙ БУСТ + СКАН ЭВРИСТИКОЙ");
+    showAbility(`⚡ ГРАДИЕНТНЫЙ БУСТ + СКАН 🔍 (${chargesText()})`);
     highlightGoodEntities();
     setTimeout(() => markPath(false), 4000);
   } else if (a === "shield") {
     S.shieldActive = 5;
-    showAbility("🛡️ СВЁРТОЧНЫЙ ЩИТ");
+    showAbility(`🛡️ СВЁРТОЧНЫЙ ЩИТ (${chargesText()})`);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.09, 8, 30),
       new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.8 }));
     ring.position.copy(playerMesh.position); ring.position.y = 1;
@@ -717,8 +744,11 @@ function useAbility() {
   } else if (a === "boost") {
     S.boostActive = 3; S.speed = Math.min(S.maxSpeed, S.speed + 12);
     S.boostCount++;
-    showAbility("⏱ ЭПОХА ОБУЧЕНИЯ ×" + S.boostCount);
+    showAbility(`⏱ ЭПОХА ОБУЧЕНИЯ ×${S.boostCount} (${chargesText()})`);
   }
+}
+function chargesText() {
+  return `${S.abilityMax - S.abilityUses}/${S.abilityMax} 🔋`;
 }
 function showAbility(t) {
   const el = $("abilityName");
@@ -846,12 +876,21 @@ $("c3d").addEventListener("pointerdown", (e) => {
   if (e.pointerType === "mouse") useAbility();
 });
 
-function togglePause() {
+function togglePause(forceOff) {
   if (!running || S.over) return;
-  paused = !paused;
-  $("btnPause").textContent = paused ? "▶ Продолжить" : "⏸ Пауза";
-  if (paused) popMsg("ПАУЗА", "#9aa3c0");
+  if (quizLock) return;                 // во время вопроса пауза недоступна
+  paused = forceOff ? false : !paused;
+  $("btnPause").textContent = paused ? "▶ Пауза" : "⏸ Пауза";
+  $("pauseModal").classList.toggle("hidden", !paused);
+  if (paused && level.ability) {
+    popMsg(`${ABILITY_INFO[level.ability].icon} ПРОБЕЛ — ${ABILITY_INFO[level.ability].name}, зарядов: ${Math.max(0, S.abilityMax - S.abilityUses)}`, "#9aa3c0");
+  } else if (paused) {
+    popMsg("ПАУЗА", "#9aa3c0");
+  }
 }
+$("btnResume").onclick = () => togglePause(true);
+$("btnRestart").onclick = () => { $("pauseModal").classList.add("hidden"); startLevel(currentLevelIndex); };
+$("btnQuit").onclick = () => { $("pauseModal").classList.add("hidden"); stopEngine(); buildMenu(); showScreen("menu"); };
 
 /* =========================================================
    СТАРТ / ФИНИШ УРОВНЯ
@@ -865,6 +904,7 @@ function startLevel(i) {
   buildWorld();
   $("hudTopic").textContent = level.topic;
   $("btnPause").textContent = "⏸ Пауза";
+  $("pauseModal").classList.add("hidden");
   hideQuiz();
   showScreen("game");
   running = true; paused = false;
@@ -875,9 +915,9 @@ function startLevel(i) {
   if (!rafId) loop();
 }
 function getStartHint() {
-  if (level.ability === "scan") return "ПРОБЕЛ/КЛИК = СКАН A* 🔍";
-  if (level.ability === "shield") return "ПРОБЕЛ/КЛИК = СВЁРТОЧНЫЙ ЩИТ 🛡️";
-  if (level.ability === "boost") return "ПРОБЕЛ/КЛИК = ЭПОХА ОБУЧЕНИЯ ⏱️";
+  if (level.ability === "scan") return "ПРОБЕЛ/КЛИК = СКАН A* 🔍 · 2 заряда 🔋";
+  if (level.ability === "shield") return "ПРОБЕЛ/КЛИК = СВЁРТОЧНЫЙ ЩИТ 🛡️ · 2 заряда 🔋";
+  if (level.ability === "boost") return "ПРОБЕЛ/КЛИК = ЭПОХА ОБУЧЕНИЯ ⏱️ · 3 заряда 🔋";
   return "ПОЕХАЛИ! 🏁";
 }
 function stopEngine() {

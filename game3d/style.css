@@ -264,3 +264,9 @@ body {
   .hud-chip { font-size: 13px; padding: 5px 10px; }
   .fact-box { font-size: 12px; bottom: 58px; }
 }
+
+/* ===== пауза-меню ===== */
+.pause-card { text-align: center; }
+.pause-title { font-size: 2rem; letter-spacing: .12em; color: #00e5ff; text-shadow: 0 0 18px rgba(0,229,255,.6); margin-bottom: 18px; }
+.pause-buttons { display: flex; flex-direction: column; gap: 12px; align-items: stretch; min-width: 260px; }
+.pause-hint { margin-top: 14px; font-size: .8rem; color: #9aa3c0; }
