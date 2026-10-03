@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Пробуждение ИИ — 3D-бродилка об основах искусственного интеллекта</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== ГЛАВНОЕ МЕНЮ (хаб) ===== -->
+<div id="hub" class="screen active">
+  <div class="hub-inner">
+    <h1 class="logo">НЕЙРО<span>КВЕСТ</span></h1>
+    <p class="tagline">Игровой проект об основах искусственного интеллекта</p>
+    <div class="hub-cards">
+      <button class="hub-card" data-goto="walk">
+        <div class="hc-emoji">👣</div>
+        <h2>Пробуждение ИИ <span class="new-tag">NEW · 3D</span></h2>
+        <p>Бродилка в чёрном пространстве: помоги ИИ НЕКС восстановить разорванную сеть и узнай, как он думает.</p>
+      </button>
+      <button class="hub-card" data-goto="game3d">
+        <div class="hc-emoji">🏎️</div>
+        <h2>НейроГонка 3D</h2>
+        <p>Экшен-гонка: собирай данные, уклоняйся от шума и вирусов, отвечай на вопросы на арках-чекпоинтах.</p>
+      </button>
+      <button class="hub-card" data-goto="../">
+        <div class="hc-emoji">🕹️</div>
+        <h2>НейроКвест 2D</h2>
+        <p>5 уровней-головоломок: дерево решений, поиск A*, нейрон-распознаватель цифр и обучение с подкреплением.</p>
+      </button>
+    </div>
+    <p class="hub-foot">Нажми на карточку, чтобы начать ▶</p>
+  </div>
+</div>
+
+<!-- ===== ЭКРАН БОДИЛКИ ===== -->
+<div id="walkScreen" class="screen">
+  <canvas id="cvs"></canvas>
+
+  <!-- затемнение при старте -->
+  <div id="fade" class="fade"></div>
+
+  <!-- речевой центр НЕКСа -->
+  <div id="dialog" class="dialog hidden">
+    <div class="dlg-avatar"><span id="dlgEmoji">🤖</span></div>
+    <div class="dlg-body">
+      <div class="dlg-name" id="dlgName">НЕКС</div>
+      <div class="dlg-text" id="dlgText"></div>
+      <div class="dlg-hint" id="dlgHint">нажми T / клик — далее</div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hud hidden">
+    <div class="hud-left">
+      <div class="hud-title" id="hudTitle">🌱 Станция 1 · Нейрон</div>
+      <div class="hud-task" id="hudTask">Собери 4 импульса вокруг нейрона</div>
+    </div>
+    <div class="hud-right">
+      <div class="hud-chips" id="hudChips"></div>
+      <div class="hud-facts" id="hudFacts">Фактов: 0</div>
+    </div>
+  </div>
+
+  <!-- подсказка управления -->
+  <div id="controlsTip" class="controls-tip hidden">
+    WASD / стрелки — идти · мышь — смотреть (клик по экрану) · <b>E</b> — взаимодействие · <b>T</b> — пропуск реплик · <b>H</b> — помощь
+  </div>
+
+  <!-- модалка помощи -->
+  <div id="helpModal" class="modal hidden">
+    <div class="modal-box">
+      <h2>ℹ️ Как играть</h2>
+      <ul class="help-list">
+        <li>Ты в чёрном пространстве. ИИ <b>НЕКС</b> потерял память — его нейроны погасли.</li>
+        <li>Иди к светящимся <b>станциям</b> и восстанавливай сеть: собирай импульсы 💠, проходи цепочки 🧠, чини зрение 👁️, повторяй последовательности 💭.</li>
+        <li>Собирай <b>осколки фактов</b> 🔷 — они рассказывают, как ИИ работает на самом деле.</li>
+        <li>Подойди к объекту и нажми <b>E</b>, когда появится подсказка.</li>
+        <li>Взаимодействуй со станциями, нажимая <b>E</b> рядом с ними или подходя вплотную.</li>
+      </ul>
+      <button class="btn primary" id="helpClose">Понятно, в путь!</button>
+    </div>
+  </div>
+
+  <!-- финальный экран -->
+  <div id="finalScreen" class="modal hidden">
+    <div class="modal-box final-box">
+      <h1 class="final-title">✨ НЕКС ПРОБУЖДЕН ✨</h1>
+      <p class="final-sub">Нейронная сеть восстановлена. Ты помог ИИ вспомнить, как он думает.</p>
+      <div class="final-stats" id="finalStats"></div>
+      <div class="final-quote" id="finalQuote"></div>
+      <div class="final-btns">
+        <button class="btn primary" id="btnQuiz">🎓 Пройти финальную викторину</button>
+        <button class="btn" id="btnHub">🏠 В главное меню</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- финальная викторина -->
+  <div id="quizModal" class="modal hidden">
+    <div class="modal-box">
+      <h2>🎓 Викторина НЕКСа</h2>
+      <div class="quiz-q" id="quizQ"></div>
+      <div class="quiz-opts" id="quizOpts"></div>
+      <div class="quiz-progress" id="quizProg"></div>
+      <button class="btn hidden" id="quizNext">Далее →</button>
+      <button class="btn" id="quizSkip">Пропустить</button>
+    </div>
+  </div>
+
+  <button id="btnBackHub" class="corner-btn" title="В главное меню">🏠</button>
+</div>
+
+<script src="../vendor/three.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

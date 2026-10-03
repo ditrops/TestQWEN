@@ -1,0 +1,92 @@
+/* ===== Пробуждение ИИ — стили бродилки + хаб ===== */
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; overflow:hidden; background:#03040a; font-family:'Segoe UI', system-ui, sans-serif; color:#dfe8ff; }
+
+.screen { position:fixed; inset:0; display:none; }
+.screen.active { display:block; }
+.hidden { display:none !important; }
+
+/* ---------- ХАБ ---------- */
+#hub { background:radial-gradient(ellipse at 50% 20%, #101b3d 0%, #05070f 60%, #020308 100%); overflow:auto; }
+.hub-inner { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; padding:40px 16px; }
+.logo { font-size:clamp(34px,6vw,64px); letter-spacing:4px; font-weight:900; text-shadow:0 0 24px #4fd8ff88; }
+.logo span { color:#4fd8ff; }
+.tagline { color:#8fa3d0; margin-top:-12px; }
+.hub-cards { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; max-width:1000px; }
+.hub-card { width:min(300px,90vw); background:#0b122acc; border:1px solid #27406e; border-radius:16px; padding:22px; cursor:pointer; text-align:left; color:#dfe8ff; transition:.2s; }
+.hub-card:hover { transform:translateY(-6px); border-color:#4fd8ff; box-shadow:0 8px 30px #18c9ff33; }
+.hc-emoji { font-size:40px; margin-bottom:8px; }
+.hub-card h2 { font-size:20px; margin-bottom:8px; color:#fff; }
+.hub-card p { font-size:13.5px; color:#9db1da; line-height:1.5; }
+.new-tag { font-size:11px; background:linear-gradient(90deg,#ff5ac8,#4fd8ff); color:#04101c; padding:2px 8px; border-radius:20px; vertical-align:middle; margin-left:6px; font-weight:800; }
+.hub-foot { color:#5f74a3; font-size:13px; }
+
+/* ---------- CANVAS / HUD ---------- */
+#cvs { position:absolute; inset:0; width:100%; height:100%; display:block; cursor:crosshair; }
+.fade { position:absolute; inset:0; background:#000; pointer-events:none; opacity:1; transition:opacity 2.2s ease; z-index:40; }
+.fade.lit { opacity:0; }
+
+.hud { position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; padding:14px 18px; pointer-events:none; z-index:20; }
+.hud-title { font-weight:800; font-size:17px; color:#fff; text-shadow:0 0 12px #4fd8ffaa; }
+.hud-task { font-size:13.5px; color:#9fd0ff; margin-top:4px; max-width:60vw; }
+.hud-right { text-align:right; }
+.hud-chips { display:flex; gap:6px; justify-content:flex-end; margin-bottom:6px; }
+.chip { width:26px; height:26px; border-radius:50%; border:2px solid #2b3f68; display:flex; align-items:center; justify-content:center; font-size:13px; filter:grayscale(1) brightness(.6); }
+.chip.done { filter:none; border-color:#4fd8ff; box-shadow:0 0 10px #4fd8ff88; }
+.hud-facts { font-size:12.5px; color:#7f93c0; }
+
+.controls-tip { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:#0a1330cc; border:1px solid #24406e; padding:8px 16px; border-radius:24px; font-size:12.5px; color:#a9c2ef; z-index:20; white-space:nowrap; }
+.controls-tip b { color:#4fd8ff; }
+
+/* ---------- ДИАЛОГ НЕКСа ---------- */
+.dialog { position:absolute; left:50%; bottom:70px; transform:translateX(-50%); width:min(680px,92vw); display:flex; gap:14px; z-index:30; animation:dlgIn .35s ease; }
+@keyframes dlgIn { from { opacity:0; transform:translate(-50%,16px);} to { opacity:1; transform:translate(-50%,0);} }
+.dlg-avatar { flex:0 0 58px; height:58px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #1d3a6e, #0a142c); border:2px solid #4fd8ff; display:flex; align-items:center; justify-content:center; font-size:28px; box-shadow:0 0 18px #4fd8ff55; animation:pulseA 2.4s infinite; }
+@keyframes pulseA { 50% { box-shadow:0 0 30px #4fd8ff99; } }
+.dlg-body { flex:1; background:#0a1330ee; border:1px solid #2c4a7e; border-radius:14px; padding:14px 18px; backdrop-filter:blur(4px); }
+.dlg-name { color:#4fd8ff; font-weight:800; font-size:13px; letter-spacing:2px; margin-bottom:6px; }
+.dlg-text { font-size:15.5px; line-height:1.55; min-height:44px; }
+.dlg-hint { margin-top:8px; font-size:11.5px; color:#61799f; text-align:right; animation:blink 1.6s infinite; }
+@keyframes blink { 50% { opacity:.35; } }
+
+/* ---------- ПОДСКАЗКА ВЗАИМОДЕЙСТВИЯ ---------- */
+.interact-tip { position:absolute; left:50%; top:58%; transform:translateX(-50%); background:#0c1a3bee; border:1px solid #4fd8ff; color:#cfeaff; padding:8px 18px; border-radius:24px; font-size:14.5px; z-index:25; box-shadow:0 0 16px #4fd8ff44; pointer-events:none; }
+.interact-tip b { color:#ffd76a; }
+
+/* ---------- МОДАЛКИ ---------- */
+.modal { position:absolute; inset:0; background:#01030ad0; display:flex; align-items:center; justify-content:center; z-index:50; backdrop-filter:blur(3px); }
+.modal-box { width:min(560px,92vw); max-height:86vh; overflow:auto; background:linear-gradient(160deg,#0c1634,#070c1e); border:1px solid #33508a; border-radius:18px; padding:26px 28px; box-shadow:0 20px 60px #000c; }
+.modal-box h2 { color:#fff; margin-bottom:14px; font-size:21px; }
+.help-list { list-style:none; display:flex; flex-direction:column; gap:10px; margin-bottom:18px; }
+.help-list li { font-size:14px; color:#b9cbec; line-height:1.5; padding-left:18px; position:relative; }
+.help-list li::before { content:'▹'; position:absolute; left:0; color:#4fd8ff; }
+.btn { background:#152547; border:1px solid #3a5a96; color:#dfe8ff; padding:10px 20px; border-radius:12px; font-size:14.5px; cursor:pointer; transition:.15s; }
+.btn:hover { border-color:#4fd8ff; box-shadow:0 0 14px #4fd8ff44; }
+.btn.primary { background:linear-gradient(90deg,#0f6fb8,#18c9a2); border:none; color:#03121c; font-weight:800; }
+.corner-btn { position:absolute; top:12px; right:14px; z-index:22; background:#0a1330bb; border:1px solid #2c4a7e; border-radius:10px; padding:6px 10px; font-size:16px; cursor:pointer; color:#cfe0ff; }
+.corner-btn:hover { border-color:#4fd8ff; }
+
+/* финал */
+.final-box { text-align:center; }
+.final-title { font-size:30px; background:linear-gradient(90deg,#ffd76a,#4fd8ff,#ff5ac8); -webkit-background-clip:text; background-clip:text; color:transparent; margin-bottom:8px; }
+.final-sub { color:#9db6e0; margin-bottom:16px; }
+.final-stats { display:flex; gap:22px; justify-content:center; margin-bottom:16px; font-size:15px; color:#cfe4ff; }
+.final-quote { font-style:italic; color:#8fd2ff; border-left:3px solid #4fd8ff; padding:8px 14px; margin:0 auto 20px; max-width:440px; text-align:left; font-size:14px; line-height:1.5; }
+.final-btns { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+
+/* викторина */
+.quiz-q { font-size:16.5px; color:#fff; margin-bottom:16px; line-height:1.5; }
+.quiz-opts { display:flex; flex-direction:column; gap:9px; margin-bottom:14px; }
+.qopt { text-align:left; background:#12203f; border:1px solid #33508a; color:#dfe8ff; padding:11px 14px; border-radius:11px; cursor:pointer; font-size:14.5px; transition:.15s; }
+.qopt:hover:not(:disabled) { border-color:#4fd8ff; }
+.qopt.right { border-color:#3ddc84; background:#0d3323; }
+.qopt.wrong { border-color:#ff5a6a; background:#3a1220; }
+.qopt:disabled { cursor:default; opacity:.9; }
+.quiz-progress { font-size:12.5px; color:#7f93c0; margin-bottom:10px; }
+
+@media (max-width:640px){
+  .hud { flex-direction:column; gap:6px; }
+  .hud-right { text-align:left; }
+  .hud-chips { justify-content:flex-start; }
+  .controls-tip { display:none; }
+}
