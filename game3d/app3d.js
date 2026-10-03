@@ -170,6 +170,7 @@ function resetState() {
     timeLeft: level ? level.timeLimit : 0,
     spawnTimer: 0, quizPlan: null, quizGate: false,
     scanActive: 0, shieldActive: 0, boostActive: 0,
+    scanMarks: [],
     over: false, won: false, shake: 0, wallCool: 0,
     entityZGap: 26, hitsTaken: 0
   });
@@ -275,6 +276,7 @@ function clearWorld() {
   timers.forEach(T => T.fn && T.fn());
   timers.length = 0;
   if (S.ring) { S.ring = null; }
+  clearScanMarks();
   if (playerMesh) { scene.remove(playerMesh); disposeObj(playerMesh); playerMesh = null; }
   while (scene.children.length) { const o = scene.children[0]; scene.remove(o); disposeObj(o); }
 }
@@ -477,13 +479,13 @@ function update(dt, now) {
     if (S.timeLeft <= 0) { finish(false); return; }
   }
   // скорость и дистанция (на время вопроса машина стоит — квиз вписан в маршрут)
-  const sc = S.quizGate ? 0 : scanMult();
+  const sc = S.quizGate ? 0 : 1;
   if (!S.quizGate) {
-    S.speed += dt * (S.boostActive > 0 ? 14 : 3.2) * (S.scanActive > 0 ? 0.8 : 1);
+    S.speed += dt * (S.boostActive > 0 ? 14 : 3.2);
     if (S.speed > S.maxSpeed) S.speed = S.maxSpeed;
   }
   if (S.boostActive > 0) S.boostActive -= dt;
-  if (S.scanActive > 0) S.scanActive -= dt;
+  updateScan(dt);
   if (S.shieldActive > 0) S.shieldActive -= dt;
   if (S.wallCool > 0) S.wallCool -= dt;
   if (S.abilityCd > 0) {
@@ -596,8 +598,6 @@ function update(dt, now) {
   updateHud();
 }
 
-function scanMult() { return S.scanActive > 0 ? 1.25 : 1; }
-
 function bumpWall() {
   if (S.shieldActive > 0) return;
   if (S.wallCool > 0) return;
@@ -686,7 +686,11 @@ function updateHud() {
   $("hudLives").textContent = "❤️".repeat(Math.max(0, S.lives)) || "0";
   if (level.ability) {
     const left = Math.max(0, S.abilityMax - S.abilityUses);
-    $("hudBoost").textContent = `${ABILITY_INFO[level.ability].icon}${"🔋".repeat(left) || "✖"}${S.abilityCd > 0 ? " ⏳" : ""}`;
+    let extra = "";
+    if (S.scanActive > 0) extra = ` ⏳${Math.ceil(S.scanActive)}с`;
+    else if (S.shieldActive > 0) extra = " 🛡️";
+    else if (S.abilityCd > 0) extra = " ⏳";
+    $("hudBoost").textContent = `${ABILITY_INFO[level.ability].icon}${"🔋".repeat(left) || "✖"}${extra}`;
   } else {
     $("hudBoost").textContent = "×" + S.combo;
   }
@@ -707,7 +711,7 @@ function popMsg(t, color) {
 
 /* ---------- суперсилы (ограниченными зарядами) ---------- */
 const ABILITY_INFO = {
-  scan:   { icon: "🔍", name: "СКАН A*",        cd: 6 },
+  scan:   { icon: "📡", name: "СКАНЕР ДАННЫХ", cd: 5 },
   shield: { icon: "🛡️", name: "ЩИТ",            cd: 6 },
   boost:  { icon: "⏱️", name: "ЭПОХА ОБУЧЕНИЯ", cd: 4 }
 };
@@ -727,11 +731,10 @@ function useAbility() {
   S.abilityCd = info.cd;
   updateHud();
   if (a === "scan") {
-    S.scanActive = 4;
-    markPath(true);
-    showAbility(`⚡ ГРАДИЕНТНЫЙ БУСТ + СКАН 🔍 (${chargesText()})`);
-    highlightGoodEntities();
-    setTimeout(() => markPath(false), 4000);
+    S.scanActive = 8;
+    showAbility(`📡 СКАНЕР ДАННЫХ АКТИВЕН (${chargesText()})`);
+    popMsg("📡 Сканирую трассу впереди…", "#00e5ff");
+    refreshScanMarks();
   } else if (a === "shield") {
     S.shieldActive = 5;
     showAbility(`🛡️ СВЁРТОЧНЫЙ ЩИТ (${chargesText()})`);
@@ -755,17 +758,52 @@ function showAbility(t) {
   el.textContent = t; el.classList.remove("hidden");
   setTimeout(() => el.classList.add("hidden"), 1200);
 }
-function highlightGoodEntities() {
+/* ---------- СКАНЕР ДАННЫХ: радар сквозь стены ---------- */
+const SCAN_KIND = {
+  data:   { icon: "💾", color: "#3ddc84", label: E => `+${E.points}` },
+  star:   { icon: "🔋", color: "#ffd166", label: E => `×${E.points}` },
+  node:   { icon: "✅", color: "#00e5ff", label: () => "+2" },
+  obj:    { icon: "💽", color: "#7c5cff", label: () => "+3" },
+  noise:  { icon: "☣", color: "#ff5470", label: () => "Шум!" },
+  overfit:{ icon: "🧠", color: "#ff5470", label: () => "Опасно!" },
+  block:  { icon: "⚠️", color: "#ffd166", label: () => "Блок" },
+  decoy:  { icon: "🎭", color: "#ff5470", label: () => "Обманка" },
+  penalty:{ icon: "💀", color: "#ff5470", label: () => "Штраф" }
+};
+function clearScanMarks() {
+  if (!S.scanMarks) return;
+  S.scanMarks.forEach(m => { scene.remove(m.sprite); disposeObj(m.sprite); });
+  S.scanMarks.length = 0;
+}
+function refreshScanMarks() {
+  clearScanMarks();
+  const px = playerMesh ? playerMesh.position.x : 0;
   entities.forEach(E => {
-    if (E.good && !E.dead) {
-      const m = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.5, 20),
-        new THREE.MeshBasicMaterial({ color: 0xffd166, side: THREE.DoubleSide, transparent: true, opacity: .9 }));
-      m.rotation.x = -Math.PI / 2;
-      m.position.set(E.x, 0.06, E.z);
-      scene.add(m);
-      timers.push({ t: 4, fn: () => { scene.remove(m); disposeObj(m); } });
-    }
+    if (E.dead || E.isGate) return;
+    const ahead = -E.mesh.position.z - 9;      // расстояние впереди машины
+    if (ahead < 15 || ahead > 260) return;
+    const info = SCAN_KIND[E.kind]; if (!info) return;
+    const dangerOnLane = !E.good && Math.abs(E.x - px) < 2.0;
+    if (!E.good && !dangerOnLane) return;      // показываем все бонусы, но только опасности на нашей полосе
+    const s = spriteText(`${info.icon} ${info.label(E)}`, info.color, 60);
+    s.scale.set(3.2, 3.2, 1);
+    s.material.depthTest = false;              // видно «сквозь» объекты и туман
+    s.renderOrder = 999;
+    s.position.set(E.x, 3.1, E.mesh.position.z + 0.5);
+    scene.add(s);
+    S.scanMarks.push({ sprite: s, E });
   });
+}
+function updateScan(dt) {
+  if (S.scanActive > 0) {
+    S.scanActive -= dt;
+    if (S.scanActive <= 0) { clearScanMarks(); updateHud(); }
+    else for (const m of S.scanMarks) {        // метки «дышат» и живут вместе с объектами
+      if (m.E.dead) { m.sprite.visible = false; continue; }
+      m.sprite.position.z = m.E.mesh.position.z + 0.5;
+      m.sprite.position.y = 3.1 + Math.sin(performance.now() * 0.005 + m.E.x) * 0.15;
+    }
+  }
 }
 
 /* маркер финиша/пути (уровень A*) */
@@ -854,9 +892,14 @@ function showFact(html) {
 /* ---------- управление ---------- */
 const keys = { left: false, right: false };
 window.addEventListener("keydown", e => {
+  if (!$("codexModal").classList.contains("hidden")) {   // книга открыта: Esc/K закрывают её
+    if (e.code === "Escape" || e.code === "KeyK") closeCodex();
+    return;
+  }
   if (["ArrowLeft", "KeyA"].includes(e.code)) keys.left = true;
   if (["ArrowRight", "KeyD"].includes(e.code)) keys.right = true;
   if (e.code === "Space") { e.preventDefault(); useAbility(); }
+  if (e.code === "KeyK") openCodex();
   if (e.code === "KeyP" || e.code === "Escape") togglePause();
 });
 window.addEventListener("keyup", e => {
@@ -893,8 +936,54 @@ $("btnRestart").onclick = () => { $("pauseModal").classList.add("hidden"); start
 $("btnQuit").onclick = () => { $("pauseModal").classList.add("hidden"); stopEngine(); buildMenu(); showScreen("menu"); };
 
 /* =========================================================
-   СТАРТ / ФИНИШ УРОВНЯ
+   КОДЕКС АГЕНТА — книжка-бестиарий в углу экрана
    ========================================================= */
+const CODEX = [
+  { h: "⚡ СПОСОБНОСТИ (Пробел или клик)", items: [
+    { t: "📡 Сканер данных", d: "Радар на 8 секунд: показывает сквозь стены и туман все 💾 данные, ⭐ награды, ✅ узлы A* и 💽 объекты впереди (до 260 м), а красными метками — опасности прямо на твоей полосе. Так модель компьютерного зрения «видит» объекты раньше, чем ты их замечаешь.", tip: "Копи заряды на плотные участки: скан покажет, где лежит больше всего данных." },
+    { t: "🛡️ Сверточный щит", d: "5 секунд неуязвимости: шум 🐛, переобучение 🧠, обманки 🎭 и стены поглощаются без последствий. Аналог свёрточного слоя нейросети, который фильтрует полезное и отсекает помехи.", tip: "Ставь щит перед участком, где сканер показал красную метку на твоей полосе." },
+    { t: "⏱️ Эпоха обучения", d: "Рывок скорости на 3 секунды — проезжаешь больше трассы за то же время. «Эпоха» в машинном обучении — один полный проход по всем данным: больше эпох — быстрее обучение.", tip: "Активируй, когда впереди длинная цепочка бонусов, а время на таймере тает." }
+  ]},
+  { h: "☠️ ОПАСНОСТИ", items: [
+    { t: "🐛 Шум данных (−2 очка)", d: "Мусор в датасете: ошибочные или нерелевантные примеры. Модель, наученная на шуме, принимает худшие решения.", tip: "Легко объехать по соседней полосе." },
+    { t: "🧠 Переобучение (−1 жизнь)", d: "Модель выучила тренировочные данные наизусть и ошибается на новых. Самый дорогой враг в игре.", tip: "Не тарань; если уворачиваться поздно — спасёт щит, а сканер предупредит заранее." },
+    { t: "❌ Блокировка пути (тормоз −10)", d: "Тупик в графе поиска: алгоритму A* приходится перепланировать маршрут. В игре — резкая потеря скорости.", tip: "Сканирование видно блокировки издалека — смени полосу заранее." },
+    { t: "🎭 Обманка (−3 очка)", d: "Фальшивый объект для модели компьютерного зрения: выглядит похоже, но классифицируется неверно.", tip: "На уровне «зрение» стреляй только по кубам, шарам и куполам с подписями." },
+    { t: "💀 Штраф среды (−5 очков)", d: "Отрицательная награда в обучении с подкреплением: агент запоминает, что в яму лучше не попадать.", tip: "В арене запомни расположение ям — RL-агент так и делает." }
+  ]},
+  { h: "🎁 БОНУСЫ", items: [
+    { t: "💾 Данные (+1…+N)", d: "Топливо машинного обучения: без данных нет обучения. Каждые 5 подряд собранных — комбо-множитель ×2, ×3…", tip: "Собирай цепочками в одной полосе — комбо решает всё." },
+    { t: "⭐ Награда (+10)", d: "Положительная награда из обучения с подкреплением: сигнал «делай так чаще».", tip: "Ради одной звезды не тарань переобучение — игра стоит свеч только без потерь." },
+    { t: "✅ Узел A* (+2)", d: "Шаг оптимального пути: алгоритм расширяет узлы графа от старта к цели.", tip: "Цепочки узлов обычно ведут через чистые полосы." },
+    { t: "💽 Объект CV (+3)", d: "Распознанный класс: куб, шар или купол. Модель компютера зрения предсказывает метку объекта.", tip: "Читай подпись над объектом до столкновения." },
+    { t: "🎓 Чекпоинт знаний", d: "Арка на трассе: машина останавливается, открывается вопрос по теме уровня. Правильный ответ даёт +5 очков и буст, ошибка — штраф.", tip: "Перед аркой появляется предупреждение — успей собрать комбо." }
+  ]},
+  { h: "🧠 МУДРОСТЬ ИИ", items: [
+    { t: "Обучение ≠ программирование", d: "Классическая программа — правила от человека. ML — правила, которые модель выводит из данных сама.", tip: "Каждый уровень игры — про один из этих принципов." },
+    { t: "A* — умный поиск", d: "Эвристика (приблизительная оценка расстояния) направляет поиск к цели вместо слепого перебора всех вариантов.", tip: "Как в level 3: жёлтые точки подсказывают верное направление." },
+    { t: "Больше — не значит умнее", d: "ChatGPT содержит 175 млрд параметров, AlphaStar обыграл профессионалов в StarCraft II — но обе модели обучались на огромных датасетах месяцами.", tip: "Хочешь продолжить тему? Загляни в 2D-версию «НейроКвест» в корне сайта." }
+  ]}
+];
+
+function openCodex() {
+  if (!running || paused || quizLock) return;
+  const body = $("codexBody");
+  body.innerHTML = CODEX.map(sec =>
+    `<div class="codex-h3">${sec.h}</div>` + sec.items.map(it =>
+      `<div class="codex-entry${sec.h.includes("МУДРОСТЬ") ? " codex-fact" : ""}"><b>${it.t}</b><p>${it.d}</p><p class="codex-tip">💡 ${it.tip}</p></div>`
+    ).join("")
+  ).join("");
+  togglePause(true);            // гарантируем паузу перед книгой
+  $("pauseModal").classList.add("hidden");   // окно паузы не нужно поверх кодекса
+  $("codexModal").classList.remove("hidden");
+}
+function closeCodex() {
+  $("codexModal").classList.add("hidden");
+  paused = false;               // книга закрыта — гонка продолжается
+  $("btnPause").textContent = "⏸ Пауза";
+}
+$("btnCodex").onclick = openCodex;
+$("btnCodexClose").onclick = closeCodex;
 function startLevel(i) {
   currentLevelIndex = i;
   level = LEVELS[i];

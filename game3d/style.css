@@ -270,3 +270,30 @@ body {
 .pause-title { font-size: 2rem; letter-spacing: .12em; color: #00e5ff; text-shadow: 0 0 18px rgba(0,229,255,.6); margin-bottom: 18px; }
 .pause-buttons { display: flex; flex-direction: column; gap: 12px; align-items: stretch; min-width: 260px; }
 .pause-hint { margin-top: 14px; font-size: .8rem; color: #9aa3c0; }
+
+/* ---------- Кодекс агента (бестиарий) ---------- */
+#btnCodex {
+  position: fixed; right: 14px; bottom: 78px; z-index: 60;
+  width: 52px; height: 52px; border-radius: 50%;
+  font-size: 26px; line-height: 1; cursor: pointer;
+  background: rgba(20, 24, 44, .85); color: #ffd166;
+  border: 2px solid #7c5cff; box-shadow: 0 0 14px rgba(124,92,255,.55);
+  animation: codexPulse 2.4s ease-in-out infinite;
+}
+#btnCodex:hover { transform: scale(1.12); }
+@keyframes codexPulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(124,92,255,.4); }
+  50%      { box-shadow: 0 0 22px rgba(124,92,255,.9); }
+}
+.codex-card { max-width: 640px; width: 92vw; max-height: 82vh; overflow-y: auto; text-align: left; }
+.codex-title { text-align: center; margin-bottom: 10px; }
+.codex-h3 { color: #00e5ff; margin: 14px 0 6px; font-size: 15px; letter-spacing: 1px; }
+.codex-entry {
+  background: rgba(30, 36, 66, .7); border-left: 3px solid #7c5cff;
+  border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
+}
+.codex-entry b { color: #ffd166; display: block; margin-bottom: 3px; }
+.codex-entry p { margin: 2px 0; font-size: 13px; color: #cdd6f4; line-height: 1.45; }
+.codex-tip { color: #3ddc84; font-style: italic; }
+.codex-fact { border-left-color: #ffd166; }
+.codex-card .btn { display: block; margin: 14px auto 0; }
