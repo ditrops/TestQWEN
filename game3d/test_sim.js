@@ -27,7 +27,7 @@ global.addEventListener = () => {};
 global.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 global.innerWidth = 800; global.innerHeight = 600; global.devicePixelRatio = 1;
 let rafCb = null;
-global.requestAnimationFrame = (cb) => { rafCb = cb; return 1; };
+global.requestAnimationFrame = (cb) => { if (!rafCb) rafCb = cb; return 1; };   // не затираем «первый» колбэк: loop() переподписывается сам
 global.cancelAnimationFrame = () => { rafCb = null; };
 global.confirm = () => false;
 global.navigator = {};
@@ -37,6 +37,7 @@ global.SIM = true;
 class V3 { constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z;} copy(v){this.x=v.x;this.y=v.y;this.z=v.z;return this;} set(x,y,z){if(typeof x==="number"){this.x=x;this.y=y;this.z=z}else{this.x=x.x;this.y=x.y;this.z=x.z}return this;} setScalar(s){this.x=this.y=this.z=s;return this;} clone(){return new V3(this.x,this.y,this.z);} }
 function mkMesh(extra={}) {
   const m = { position: new V3(), rotation: new V3(), scale: new V3(1,1,1), visible: true, children: [],
+    material: { color: { set(){}, getHex(){return 0} }, map: null, dispose(){}, clone(){ return this; } },   // заглушки THREE для burst()/disposeObj()
     add(...c){ c.forEach(x=>this.children.push(x)); }, clone(){ return mkMesh(extra); },
     getObjectByName(n){ return this.children.find(c=>c.name===n) || null; },
     traverse(f){ f(this); this.children.forEach(ch=>ch.traverse&&ch.traverse(f)); } };
@@ -80,10 +81,16 @@ global.THREE.Sprite = function(){ return mkMesh(); };
 let code = fs.readFileSync(path.join(__dirname, "app3d.js"), "utf8");
 code = code.replace(/^"use strict";/m, "")                       // let/const в eval → глобальные для теста
 // let/const в indirect eval не попадают в globalThis — переносим их в var для скоупа теста
-code = code.replace(/^(?:let|const)\s+((?:S|entities|running|paused|level|currentLevelIndex)(?= =))/gm, "globalThis.$1");
+code = code.replace(/^(?:let|const)\s+((?:S|entities|running|paused|level|currentLevelIndex|lastT|rafId)(?= =))/gm, "globalThis.$1");
 code = code.replace(/\b(?:let|const)\s+(LEVELS|buildQuizPlan|shuffledOptions|quizLock)\b/g, "var $1");
+code = code.replace(/\b(?:let|const)\s+(codexOpen|codexPausedByBook)\b/g, "globalThis.$1 = false; var $1");
 code = code.replace(/^(buildMenu\(\);\nshowScreen\("menu"\);)/m, "/*test: no auto-start*/");
 (0,eval)(code);
+
+// цикл как в браузере: loop() сам проверяет running/paused — используем его для проверки остановок
+let _ms = 100000;
+global.performance = { now: () => _ms };   // управляемое время: кадры по +20 мс
+function loopCall(ms) { _ms += (ms || 20); lastT = _ms - (ms || 20); const c = rafCb; rafCb = null; if (c) c(); }   // один кадр цикла
 
 // ---- проверка 1: перемешивание ответов ----
 {
@@ -110,13 +117,12 @@ code = code.replace(/^(buildMenu\(\);\nshowScreen\("menu"\);)/m, "/*test: no aut
 {
   startLevel(0);
   // level уже установлен startLevel(0)
-  S.dist = 0; S.speed = 26;
+  S.dist = 0; S.speed = 26; S.lives = 99;   // неуязвимый бот: цель теста — все 3 квиза, а не симуляция крашей
   let quizOpened = 0, gateSeen = 0, warned = 0;
-  const origOpen = openQuiz;
-  window.openQuiz = undefined; // eval-скоуп: перехват через monkey на функции нельзя — считаем по факту модалки
+  // eval-скоуп: перехват функций невозможен — считаем по факту показа модалки квиза
   let lastModalShown = false;
   let frames = 0;
-  while (!S.over && frames < 20000) {
+  while (!S.over && S.dist < LEVELS[0].distance && frames < 20000) {   // не считаем краш-рестарты
     running = true; paused = false;
     // рулим к ближайшему доброму объекту или держим центр
     update(0.05, performance.now());
@@ -147,6 +153,52 @@ code = code.replace(/^(buildMenu\(\);\nshowScreen\("menu"\);)/m, "/*test: no aut
   update(0.05, performance.now());
   if (S.dist !== d0) throw new Error("Машина едет во время вопроса!");
   console.log("[4] Во время квиза машина стоит — OK");
+}
+
+// ---- проверка 5: бестиарий ставит гонку на паузу и корректно закрывается ----
+{
+  startLevel(0);
+  S.lives = 99; S.speed = Math.max(S.speed, 26);   // бот неуязвим, машина «разогрета»
+  running = true; paused = false;
+  loopCall(20);   // кадр по текущему paused
+  const distAtOpen = S.dist;
+  // 5a: открытие из игры -> книга видна, окно паузы скрыто, машина стоит
+  openCodex();
+  if (els["codexModal"]._cls.has("hidden")) throw new Error("Кодекс не открылся");
+  if (!paused) throw new Error("Открытие кодекса НЕ поставило игру на паузу!");
+  if (!els["pauseModal"]._cls.has("hidden")) throw new Error("Окно паузы показано поверх кодекса");
+  loopCall();
+  if (S.dist !== distAtOpen) throw new Error("Машина едет при открытом кодексе!");
+  // 5b: закрытие кнопки -> игра продолжается без окна паузы
+  closeCodex();
+  if (!els["codexModal"]._cls.has("hidden")) throw new Error("Кодекс не закрылся");
+  if (paused) throw new Error("После закрытия книги игра осталась на паузе");
+  if (!els["pauseModal"]._cls.has("hidden")) throw new Error("Окно паузы выскочило после книги");
+  loopCall(20);
+  const d1 = S.dist;
+  if (!(S.dist > distAtOpen)) throw new Error(`Игра не поехала после закрытия кодекса (dist ${Math.floor(distAtOpen)} -> ${Math.floor(S.dist)})`);
+  // 5c: путь через меню паузы: P -> пауза -> кнопка «Кодекс» -> книга -> закрыть -> меню паузы снова
+  togglePause();
+  if (!paused || els["pauseModal"]._cls.has("hidden")) throw new Error("Меню паузы не открылось");
+  els["btnCodexFromPause"].onclick();
+  if (els["codexModal"]._cls.has("hidden")) throw new Error("Кнопка в меню паузы не открыла кодекс");
+  if (!els["pauseModal"]._cls.has("hidden")) throw new Error("Меню паузы не спряталось под кодексом");
+  loopCall();
+  if (S.dist !== d1) throw new Error("Машина едет при кодеке из меню паузы!");
+  closeCodex();
+  if (!paused) throw new Error("После возврата из кодекса потеряна пауза");
+  if (els["pauseModal"]._cls.has("hidden")) throw new Error("Меню паузы не вернулось после книги");
+  togglePause(true);   // продолжить
+  if (paused) throw new Error("Не удалось продолжить после пути через кодекс");
+  // 5d: двойное открытие игнорируется; квиз-лок блокирует книгу
+  openCodex(); const wasOpen = !els["codexModal"]._cls.has("hidden");
+  openCodex();
+  if ((codexOpen) !== wasOpen) throw new Error("Повторный вызов openCodex сломал состояние");
+  closeCodex();
+  quizLock = true; openCodex();
+  if (!els["codexModal"]._cls.has("hidden")) throw new Error("Кодекс открылся во время вопроса!");
+  quizLock = false;
+  console.log("[5] Бестиарий: пауза при открытии, возврат в меню паузы, блокировки — OK");
 }
 
 console.log("\nALL TESTS PASSED ✅");

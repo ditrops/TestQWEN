@@ -922,6 +922,7 @@ $("c3d").addEventListener("pointerdown", (e) => {
 function togglePause(forceOff) {
   if (!running || S.over) return;
   if (quizLock) return;                 // во время вопроса пауза недоступна
+  if (codexOpen) { closeCodex(); return; }  // P/Esc при открытой книге — закрыть её и продолжить
   paused = forceOff ? false : !paused;
   $("btnPause").textContent = paused ? "▶ Пауза" : "⏸ Пауза";
   $("pauseModal").classList.toggle("hidden", !paused);
@@ -965,25 +966,37 @@ const CODEX = [
   ]}
 ];
 
+let codexOpen = false, codexPausedByBook = false;
 function openCodex() {
-  if (!running || paused || quizLock) return;
+  if (!running || S.over || quizLock || codexOpen) return;
   const body = $("codexBody");
   body.innerHTML = CODEX.map(sec =>
     `<div class="codex-h3">${sec.h}</div>` + sec.items.map(it =>
       `<div class="codex-entry${sec.h.includes("МУДРОСТЬ") ? " codex-fact" : ""}"><b>${it.t}</b><p>${it.d}</p><p class="codex-tip">💡 ${it.tip}</p></div>`
     ).join("")
   ).join("");
-  togglePause(true);            // гарантируем паузу перед книгой
+  codexOpen = true;
+  codexPausedByBook = !paused;      // если игрок уже на паузе — книгу просто показываем
+  paused = true;                     // гонка гарантированно стоит, пока открыт кодекс
+  $("btnPause").textContent = "▶ Пауза";
   $("pauseModal").classList.add("hidden");   // окно паузы не нужно поверх кодекса
   $("codexModal").classList.remove("hidden");
 }
 function closeCodex() {
+  if (!codexOpen) return;
+  codexOpen = false;
   $("codexModal").classList.add("hidden");
-  paused = false;               // книга закрыта — гонка продолжается
-  $("btnPause").textContent = "⏸ Пауза";
+  if (codexPausedByBook) {          // книгу открыли с игры → при закрытии продолжаем забег
+    paused = false;
+    codexPausedByBook = false;
+    $("btnPause").textContent = "⏸ Пауза";
+  } else {                          // книгу открыли из меню паузы → возвращаем меню паузы
+    $("pauseModal").classList.remove("hidden");
+  }
 }
 $("btnCodex").onclick = openCodex;
 $("btnCodexClose").onclick = closeCodex;
+$("btnCodexFromPause").onclick = () => { if (running && !quizLock) openCodex(); };
 function startLevel(i) {
   currentLevelIndex = i;
   level = LEVELS[i];
@@ -994,6 +1007,8 @@ function startLevel(i) {
   $("hudTopic").textContent = level.topic;
   $("btnPause").textContent = "⏸ Пауза";
   $("pauseModal").classList.add("hidden");
+  codexOpen = false; codexPausedByBook = false;   // сброс состояния книги при рестарте/новом уровне
+  $("codexModal") && $("codexModal").classList.add("hidden");
   hideQuiz();
   showScreen("game");
   running = true; paused = false;
