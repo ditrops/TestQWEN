@@ -53,11 +53,11 @@ const NEX_LINES = {
     },
     { // 2. Цепочка мышления
       title:'🧠 Станция 2 · Цепочка мышления',
-      task:'Иди к белому пульсирующему кольцу и жми E — узел за узлом: 1 → 2 → … → ВЫХОД',
+      task:'Следи за жёлтым лучом: он ведёт от тебя к нужному узлу. Встань рядом и нажми E (или кликни мышью)',
       before:[
         'Смотри: одинокий нейрон загорелся — передал сигнал соседу, тот — следующему. Это и есть ЦЕПОЧКА МЫШЛЕНИЯ.',
         'Мысль бежит как эстафета: получил → обработал → передал дальше. А теперь представь не одну цепочку, а несколько, связанных между собой — это уже настоящая сеть!',
-        'Пройди сам по моим узлам от зелёного ВХОДА до красного ВЫХОДА. Просто следуй за белым пульсирующим кольцом и жми E — оно всегда показывает следующий шаг. Между слоями лови золотые искры ✨ — именно они «учат» сеть.',
+        'Пройди сам по моим узлам от зелёного ВХОДА до красного ВЫХОДА. Жёлтый луч-прожектор всегда указывает на нужный узел, а над ним пульсирует белое кольцо с цифрой шага. Подойди и нажми E или просто кликни мышью. Между слоями лови золотые искры ✨ — именно они «учат» сеть.',
       ],
       after:[
         'Ты только что прошёл путь одного «мыслительного акта». В реальных сетях таких слоёв десятки, а связей — триллионы. Вес каждой связи и есть «знания» модели.'
@@ -198,7 +198,7 @@ function makeLabel(text, color, size){
 function clearLevel(){
   objs.forEach(o=>{ if(o.mesh&&o.mesh.parent) o.mesh.parent.remove(o.mesh); if(o.label&&o.label.parent)o.label.parent.remove(o.label); });
   decor.forEach(o=>scene.remove(o));
-  decor=[]; objs=[];
+  decor=[]; objs=[]; nearObj=null; setGuide(null);
 }
 
 /* ---------------- ДИАЛОГИ ---------------- */
@@ -311,7 +311,7 @@ function checkProximity(){
   objs.forEach(o=>{
     if(o.interact && !o.done){
       const d=Math.hypot(o.mesh.position.x-player.x, o.mesh.position.z-player.z);
-      if(d<bd){bd=d;best=o;}
+      if(d<(o.radius||4.2)){bd=d;best=o;}   // radius — увеличенная зона срабатывания (узлы цепочки)
     }
   });
   if(best!==nearObj){
@@ -322,12 +322,33 @@ function checkProximity(){
       interactTipEl.className='interact-tip';
       let tip=best.tip||'взаимодействовать';
       if(best.isChainNode && typeof chainStepLabel==="function") tip=chainStepLabel(best);
-      interactTipEl.innerHTML='<b>E</b> — '+tip;
+      interactTipEl.innerHTML='<b>E</b> / клик — '+tip;
       $('walkScreen').appendChild(interactTipEl);
     }
   }
 }
 function doInteract(){ if(nearObj && nearObj.onInteract) nearObj.onInteract(); }
+
+/* клик мышью = взаимодействие (как E) — удобно, если не дошёл/не нажал.
+   срабатывает только при захваченном курсоре (клик по экрану вне pointer lock = захват, не действие) */
+document.addEventListener('mousedown', ()=>{ if(locked && state.started && !paused && nearObj) doInteract(); });
+
+/* --- жёлтый луч-«прожектор» от пульсирующего кольца к нужному узлу:
+       видно издалека, куда идти и что нажать (E или клик) --- */
+let guideBeam=null;
+function setGuide(node){
+  if(!node){ if(guideBeam){ scene.remove(guideBeam); guideBeam=null; } return; }
+  const from=new THREE.Vector3(player.x,1.4,player.z), to=node.pos.clone().setY(1.2);
+  const dir=to.clone().sub(from); const len=dir.length();
+  if(!guideBeam){
+    guideBeam=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,1,8,1,true),
+      new THREE.MeshBasicMaterial({color:0xffd76a,transparent:true,opacity:.5,depthTest:false}));
+    scene.add(guideBeam); decor.push(guideBeam);
+  }
+  guideBeam.scale.set(1,len,1);
+  guideBeam.position.copy(from).add(dir.multiplyScalar(.5));
+  guideBeam.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+}
 
 /* ---------------- ОСКОЛКИ ФАКТОВ ---------------- */
 function spawnFactShards(spots){
@@ -387,6 +408,21 @@ function spawnStationArrow(){
 function removeStationArrow(){ if(stationArrow){ if(stationArrow.parent)stationArrow.parent.remove(stationArrow); stationArrow=null; } }
 /* анимация импульса и колец на уровне «цепочка» (безопасно для любого уровня) */
 function updateChainFx(t){
+  /* луч-прожектор следует за нужным узлом, пока игрок далеко; гаснет вблизи */
+  if(guideBeam && guideBeam.parent){
+    const mk=(window.chainMarkers&&window.chainMarkers[0])||null;
+    if(state.level===1 && mk && mk.node){
+      const d=Math.hypot(mk.node.pos.x-player.x, mk.node.pos.z-player.z);
+      if(d>5.5){ guideBeam.visible=true;
+        const from=new THREE.Vector3(player.x,1.4,player.z), to=mk.node.pos.clone().setY(1.2);
+        const dir=to.clone().sub(from), len=dir.length();
+        guideBeam.scale.set(1,len,1);
+        guideBeam.position.copy(from).addScaledVector(dir,.5);
+        guideBeam.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.normalize());
+        guideBeam.material.opacity=.35+Math.abs(Math.sin(t*2))*.25;
+      } else guideBeam.visible=false;
+    } else guideBeam.visible=false;
+  }
   if(chainPulse && chainPulse.parent){
     chainPulse.visible = state.level===1;
     if(state.level===1){
@@ -492,7 +528,8 @@ function levelChain(){
     if(order.cur<pathNodes.length){
       addMarker(pathNodes[order.cur],order.cur+1);
       setPulse(pathNodes[Math.max(0,order.cur-1)].pos, pathNodes[order.cur].pos); // импульс бежит к следующему узлу
-    } else { addMarker(lastNode,'✔'); setPulse(null,null); }
+      setGuide(pathNodes[order.cur]);                                             // жёлтый луч-прожектор на нужный узел
+    } else { addMarker(lastNode,'✔'); setPulse(null,null); setGuide(null); }
   };
   refreshMarkers();
 
@@ -513,7 +550,7 @@ function levelChain(){
   // интерактивный чекпоинт-узел
   const stepNode=(node)=>{ node.mesh.material.emissiveIntensity=1.6; node.mesh.scale.setScalar(1.4); };
   nodes.forEach((n)=>{
-    objs.push({ mesh:n.mesh, interact:true, tip:'', done:false, isChainNode:true,
+    objs.push({ mesh:n.mesh, interact:true, tip:'', done:false, isChainNode:true, radius:4.2,
       onInteract:()=>{
         if(n!==pathNodes[order.cur]){ toast('⚠ Не туда! Иди к пульсирующему белому кольцу — там следующий узел '+NEX_LINES.levels[1].task.toLowerCase()); return; }
         stepNode(n); order.cur++;
@@ -521,9 +558,9 @@ function levelChain(){
           const nx=pathNodes[order.cur];
           ringTube(n.pos,nx.pos,0x4fd8ff,.12).material.emissiveIntensity=1.2; // «восстановленная» связь
           refreshMarkers();
-          toast('✅ Узел '+(order.cur)+' восстановлен! Следующий — загорается белым.');
+          toast('✅ Узел '+(order.cur)+' восстановлен! Следующий горит белым кольцом и жёлтым лучом.');
         } else {
-          clearMarkers();
+          clearMarkers(); setGuide(null);
           state.chips[1]=true; updateChips();
           say(NEX_LINES.levels[1].after, ()=>goLevel(3));
         }
