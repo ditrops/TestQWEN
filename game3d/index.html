@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>НейроГонка 3D — экшен об основах ИИ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ ЭКРАН МЕНЮ ============ -->
+<div id="menu" class="screen active">
+  <div class="menu-card">
+    <h1 class="logo">🏎️ НЕЙРО<span>ГОНКА</span> 3D</h1>
+    <p class="subtitle">Экшен-игра об основах искусственного интеллекта</p>
+    <div class="menu-desc">
+      Ты — дата-гонщик. Твоя машина обучается прямо на трассе: собирай <b>данные 📊</b>,
+      уворачився от <b>переобучения 🧠</b> и <b>багов 🐛</b>, используй суперсилы:
+      <b>градиентный буст ⚡</b>, <b>эпоху обучения ⏱️</b> и <b>свертку 🔍</b>.
+      Каждый уровень — новая тема из мира ИИ + адреналин.
+    </div>
+    <div id="levelList" class="level-list"></div>
+    <div class="menu-footer">
+      <button id="btnQuick" class="btn big">▶ Быстрая гонка</button>
+      <button id="btnReset" class="btn ghost">Сброс прогресса</button>
+    </div>
+    <p class="hint">Управление: ◀ ▶ / A D — руление · Пробел или клик — суперсила · 📱 нажми и держи сторону экрана</p>
+  </div>
+</div>
+
+<!-- ============ ИГРОВОЙ ЭКРАН ============ -->
+<div id="game" class="screen">
+  <canvas id="c3d"></canvas>
+
+  <div id="hud">
+    <div class="hud-top">
+      <div class="hud-chip">📊 <span id="hudScore">0</span>/<span id="hudTarget">25</span></div>
+      <div class="hud-chip">❤️ <span id="hudLives">3</span></div>
+      <div class="hud-chip">⚡ <span id="hudBoost">×0</span></div>
+      <div class="hud-chip">🏁 <span id="hudDist">0 м</span></div>
+    </div>
+    <div id="hudTopic" class="hud-topic"></div>
+    <div id="hudTimerWrap" class="hidden"><div id="hudTimerBar"></div></div>
+    <div id="abilityName" class="ability-name hidden"></div>
+    <div id="msgCenter" class="msg-center"></div>
+    <div id="factBox" class="fact-box hidden"></div>
+    <div class="hud-bottom">
+      <button id="btnPause" class="btn small">⏸ Пауза</button>
+    </div>
+  </div>
+
+  <!-- тултип вопроса по теме ИИ -->
+  <div id="quizModal" class="modal hidden">
+    <div class="modal-card">
+      <div id="quizEmoji" class="quiz-emoji">🤖</div>
+      <div id="quizText" class="quiz-text"></div>
+      <div id="quizAnswers" class="quiz-answers"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ЭКРАН ИТОГА ============ -->
+<div id="result" class="screen">
+  <div class="menu-card">
+    <h1 id="resTitle" class="logo small">🏁 ФИНИШ</h1>
+    <div id="resStars" class="res-stars"></div>
+    <div id="resStats" class="res-stats"></div>
+    <div id="resFact" class="res-fact"></div>
+    <div class="menu-footer">
+      <button id="btnRetry" class="btn big">🔁 Ещё раз</button>
+      <button id="btnNext" class="btn big green hidden">➡ Следующий уровень</button>
+      <button id="btnMenu" class="btn ghost">☰ В меню</button>
+    </div>
+  </div>
+</div>
+
+<script src="../vendor/three.min.js"></script>
+<script src="app3d.js"></script>
+</body>
+</html>
